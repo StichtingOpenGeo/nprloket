@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>NPRloket</title>
+    <link rel="stylesheet" href="theme/default/style.css" type="text/css">
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <script src="proj4js-compressed.js"></script>
+    <script src="OpenLayers.js"></script>
+    <script type="text/javascript">
+        var map, popup;
+
+        var fromProjection = new OpenLayers.Projection("EPSG:28992"); // Transform from RD
+        var wgs84 = new OpenLayers.Projection("EPSG:4326"); // Transform from WGS 1984
+
+        function createFeaturesFromVivaldi(item) {
+            var type = this.getElementsByTagNameNS(item, "http://www.vialis.nl/vivaldi", "Type");
+            if (type.length == 1 && type[0].firstChild.nodeValue == "parking") {
+                var feature = OpenLayers.Format.GeoRSS.prototype.createFeatureFromItem.apply(this, arguments);
+                feature.attributes.title = this.getElementsByTagNameNS(item, "http://www.vialis.nl/vivaldi", "Name")[0].firstChild.nodeValue;
+                feature.attributes.description = type[0].firstChild.nodeValue;
+                feature.attributes.vehiclecount = this.getElementsByTagNameNS(item, "http://www.vialis.nl/vivaldi", "vehiclecount")[0].firstChild.nodeValue;
+                feature.attributes.capacity = this.getElementsByTagNameNS(item, "http://www.vialis.nl/vivaldi", "capacity")[0].firstChild.nodeValue;
+                feature.attributes.occupancy = this.getElementsByTagNameNS(item, "http://www.vialis.nl/vivaldi", "occupancy")[0].firstChild.nodeValue;
+                return feature;
+            } else {
+                return false;
+            }
+        }
+
+        function createFeaturesFromVivaldi2(item) {
+            var type = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "Type");
+            if (type.length == 1 && type[0].firstChild.nodeValue == "parkinglocation") {
+                var feature = OpenLayers.Format.GeoRSS.prototype.createFeatureFromItem.apply(this, arguments);
+                feature.attributes.title = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "Name")[0].firstChild.nodeValue;
+                feature.attributes.description = type[0].firstChild.nodeValue;
+                feature.attributes.freespaceshort = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "FreeSpaceShort")[0].firstChild.nodeValue;
+                feature.attributes.freespacelong = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "FreeSpaceLong")[0].firstChild.nodeValue;
+                feature.attributes.shortcapacity = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "ShortCapacity")[0].firstChild.nodeValue;
+                feature.attributes.longcapacity = this.getElementsByTagNameNS(item, "http://www.vialis.nl/v2", "LongCapacity")[0].firstChild.nodeValue;
+                return feature;
+            } else {
+                return false;
+            }
+        }
+
+        function init(){
+            var lat = 52.07;
+            var lon = 5.2;
+            var zoom = 4;
+
+            var map_controls = [new OpenLayers.Control.Navigation(), new OpenLayers.Control.PanPanel(), new OpenLayers.Control.ZoomPanel(), new OpenLayers.Control.LayerSwitcher()];
+
+            map = new OpenLayers.Map('map', {
+                controls: map_controls,
+                maxExtent: new OpenLayers.Bounds(-285401.92,22598.08,595401.9199999999,903401.9199999999),
+                resolutions: [3440.64, 1720.32, 860.16, 430.08, 215.04, 107.52, 53.76,26.88, 13.44, 6.72, 3.36, 1.68, 0.84, 0.42, 0.21],
+                units: 'm',
+                numZoomLevels: 15,
+                projection: fromProjection,
+                featureEvents: true
+            });
+
+            var matrixIds = [];
+            for(var i=0; i<15; ++i) { 
+                matrixIds[i]='EPSG:28992:'+i;
+            }
+
+            var resolutions = [3440.64, 1720.32, 860.16, 430.08, 215.04, 107.52, 53.76, 26.88, 13.44, 6.72, 3.36, 1.68, 0.84, 0.42, 0.21];
+            var lPDOK = new OpenLayers.Layer.TMS(
+                'BRT achtergrondkaart',
+                'http://geodata.nationaalgeoregister.nl/tms/',
+                {
+                    layername: 'brtachtergrondkaart', 
+                    isBaseLayer: true, 
+                    displayInLayerSwitcher: true,
+                    type: 'png8',
+                    matrixSet: 'EPSG:28992',
+                    matrixIds: matrixIds,
+                    className :'olBackgroundLayer',
+                    tileOrigin: new OpenLayers.LonLat(-285401.92,22598.08),
+                    serverResolutions: resolutions,
+                    tileFulExtent: new OpenLayers.Bounds (-285401.92, 22598.08, 
+                        595401.9199999999, 903401.9199999999)
+                }
+            );
+
+            map.addControl(new OpenLayers.Control.LayerSwitcher());
+
+            var styleMap = new OpenLayers.StyleMap({'pointRadius': 6, 'externalGraphic': 'img/parking.png'});
+
+            var lAlmere = new OpenLayers.Layer.Vector("Almere", {
+                styleMap: styleMap,
+                projection: new OpenLayers.Projection("EPSG:4326"),
+                strategies: [new OpenLayers.Strategy.Fixed(), new OpenLayers.Strategy.Cluster()], 
+                protocol: new OpenLayers.Protocol.HTTP({ 
+                    url: "data/almere.xml", 
+                    format: new OpenLayers.Format.GeoRSS({createFeatureFromItem: createFeaturesFromVivaldi})
+                })
+            });
+            
+            var lAmsterdam = new OpenLayers.Layer.Vector("Amsterdam", {
+                styleMap: styleMap,
+                projection: new OpenLayers.Projection("EPSG:4326"),
+                strategies: [new OpenLayers.Strategy.Fixed(), new OpenLayers.Strategy.Cluster()], 
+                protocol: new OpenLayers.Protocol.HTTP({ 
+                    url: "data/amsterdam.xml", 
+                    format: new OpenLayers.Format.GeoRSS({createFeatureFromItem: createFeaturesFromVivaldi2})
+                })
+            });
+            
+            map.addLayers([lPDOK,lAlmere,lAmsterdam]);
+            if (!map.getCenter()) {
+                map.setCenter(new OpenLayers.LonLat(lon, lat).transform(new OpenLayers.Projection("EPSG:28992"), map.getProjectionObject()), zoom);
+            }
+
+            selectControl = new OpenLayers.Control.SelectFeature(
+                [lAlmere,lAmsterdam],
+                {
+                    clickout: true, toggle: false,
+                    multiple: false, hover: false,
+                    toggleKey: "ctrlKey", // ctrl key removes from selection
+                    multipleKey: "shiftKey" // shift key adds to selection
+                }
+            );
+
+            map.addControl(selectControl);
+            selectControl.activate();
+
+            lAlmere.events.on({
+                "featureselected": function(e) {
+                    var feature = e.feature.cluster[0];
+                    var pos = feature.geometry;
+                    if (popup) {
+                        map.removePopup(popup);
+                    }
+                    var title = feature.attributes.title; 
+                    var content = "";
+                    popup = new OpenLayers.Popup("popup",
+                        new OpenLayers.LonLat(pos.x, pos.y),
+                        new OpenLayers.Size(200,120),
+                        "<h3>" + title.substr(title.indexOf(' ')+1) + "</h3>" +
+                        "<h4>" + title.substr(0,title.indexOf(' ')) + "</h4>" +
+                        '<div style="text-align: right">'+
+                        "vehiclecount: " + feature.attributes.vehiclecount + "<br />" +
+                        "capacity: " + feature.attributes.capacity + "<br />" +
+                        "occupancy: " + feature.attributes.occupancy + "</div>",
+                        true);
+                    popup.className = "olPopup";
+                    map.addPopup(popup);
+                }
+            });
+
+            lAmsterdam.events.on({
+                "featureselected": function(e) {
+                    var feature = e.feature.cluster[0];
+                    var pos = feature.geometry;
+                    if (popup) {
+                        map.removePopup(popup);
+                    }
+                    var title = feature.attributes.title; 
+                    var content = "";
+                    popup = new OpenLayers.Popup("popup",
+                        new OpenLayers.LonLat(pos.x, pos.y),
+                        new OpenLayers.Size(200,120),
+                        "<h3>" + title.substr(title.indexOf(' ')+1) + "</h3>" +
+                        "<h4>" + title.substr(0,title.indexOf(' ')) + "</h4>" +
+                        '<div style="text-align: right">'+
+                        "freespaceshort: " + feature.attributes.freespaceshort + "<br />" +
+                        "shortcapacity: " + feature.attributes.shortcapacity + "<br />" +
+                        "freespacelong: " + feature.attributes.freespacelong + "<br />" +
+                        "longcapacity: " + feature.attributes.longcapacity + "</div>",
+                        true);
+                    popup.className = "olPopup";
+                    map.addPopup(popup);
+                }
+            });
+        }
+    </script>
+  </head>
+  <body onload="init();">
+    <div id="map"></div>
+    <div id="colofon"><a href="http://twitter.com/NPRloket">@NPRloket</a> - <a href="http://data.nprloket.nl/">Open Data</a></div>
+  </body>
+</html>

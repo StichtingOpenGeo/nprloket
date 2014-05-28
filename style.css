@@ -1,0 +1,31 @@
+#map {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    position: absolute;
+    width: auto;
+    height: auto;
+}
+#colofon {
+    position: absolute;
+    bottom: 1em;
+    right: 1em;
+    font-family: Verdana, Helvetica, sans-serif;
+    font-size: x-small;
+}
+
+#colofon a { 
+    text-decoration: none;
+}
+
+#colofon a:hover { 
+    text-decoration: underline;
+}
+
+#popup_GroupDiv {
+    font-family: Verdana, Helvetica, sans-serif;
+    border: 1px solid black;
+    font-size: x-small;
+    height: 128px;
+}
